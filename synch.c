@@ -263,8 +263,6 @@ struct semaphore_elem
 /* Compare priority between two threads which are in or going to be in the semaphore waiter list to determine where they are allocated in the list */
 bool pSemCompare(const struct list_elem* x, const struct list_elem* y, void* aux UNUSED) {
 	return list_entry(x, struct semaphore_elem, elem)->semaphore.priority > list_entry(y, struct semaphore_elem, elem)->semaphore.priority;
-	//return smx->semaphore.priority > smy->semaphore.priority;
-	//return list_entry(list_begin(&smx->semaphore.waiters), struct thread, elem) > list_entry(list_begin(&smy->semaphore.waiters), struct thread, elem);
 }
 
 /* Initializes condition variable COND.  A condition variable

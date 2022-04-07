@@ -98,7 +98,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-  /*initialization of global variable list which will store threads waiting their alarm*/
+  /* Initialization of global variable list which will store threads waiting their alarm */
   list_init(&sleep_list);
 }
 
@@ -351,7 +351,11 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+	/* Initialize pInit instead of priority */
+  /*thread_current ()->priority = new_priority;*/
+  thread_current()->pInit = new_priority;
+  /* Update information about priority donation caused by changes of priority */
+  pUpdate();
   /* Check whether there is preempting */
   isYield();
 }
@@ -367,11 +371,8 @@ void isYield(void) {
 	if(list_empty(&ready_list)) {
 		return;
 	}
-	else {
-		struct thread* pHighest = list_entry(list_front(&ready_list), struct thread, elem);
-		if(thread_current()->priority < pHighest->priority) {
+	else if(thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority) {
 			thread_yield();
-		}
 	}
 }
 
@@ -496,6 +497,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  /* Initialization of some thread members which are used to implement priority donation */
+  t->pInit = priority;
+  t->waitLock = NULL;
+  list_init(&t->donation_list);
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -652,3 +657,36 @@ void thread_awake(int64_t tick) {
 	}
 }
 
+/* Priority donation to all nested locks  */
+void pDonation(void) {
+	struct thread* cur = thread_current();
+	while(cur->waitLock != NULL) {
+		cur->waitLock->holder->priority = cur->priority;
+		cur = cur->waitLock->holder;
+	}
+}
+
+/* Traverse donation_list then find and remove elements which store same lock in their waitLock member with the releasing lock */
+void donation_remove(struct lock* lock) {
+	struct thread* cur = thread_current();
+	struct list_elem* elem;
+	for(elem = list_begin(&cur->donation_list); elem != list_end(&cur->donation_list); elem = list_next(elem)) {
+		struct thread* t = list_entry(elem, struct thread, donation_elem);
+		if(t->waitLock == lock) {
+			list_remove(&t->donation_elem);
+		}
+	}
+}
+
+/* Initialize the priority of current thread into pInit and update the priority of current thread into the highest priority of donation_list if donation_list is not empty */
+void pUpdate(void) {
+	struct thread* cur = thread_current();
+	cur->priority = cur->pInit;
+	if(!list_empty(&cur->donation_list)) {
+		list_sort(&cur->donation_list, pCompare, NULL);
+		struct thread* front = list_entry(list_front(&cur->donation_list), struct thread, donation_elem);
+		if(front->priority > cur->priority) {
+			cur->priority = front->priority;
+		}
+	}
+}

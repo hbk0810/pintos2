@@ -103,17 +103,28 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-	/*store tick for setting awake time of each thread*/
+	/* Store tick for setting awake time of each thread */
 	int64_t wakeup_tick;
+	/* Store the address of a lock which has been blocked this thread */
+	struct lock* waitLock;
+	/* Store the original priority of this thread before donated  */
+	int pInit;
+	/* Store the list of priority donation threads to this thread */
+	struct list donation_list;
+	struct list_elem donation_elem;
   };
 /*declaration of newly implemented functions in thread.c*/
 int64_t get_fastest(void);
 void set_fastest(int64_t);
 void thread_sleep(int64_t);
 void thread_awake(int64_t);
-/*declaration for implement priority scheduling*/
+/* Declaration of functions for implement priority scheduling */
 void isYield(void);
 bool pCompare(const struct list_elem*, const struct list_elem*, void *aux);
+/* Declaration of functions for implement priority donation */
+void pDonation(void);
+void donation_remove(struct lock*);
+void pUpdate(void);
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */

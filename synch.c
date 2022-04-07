@@ -70,7 +70,7 @@ sema_down (struct semaphore *sema)
     {
 		/* Replace round robin insert to priority insert for sema waiter list */
       /*list_push_back (&sema->waiters, &thread_current ()->elem);*/
-	  list_insert_ordered(&sema->waiters, &thread_current()->elem, pSemCompare, NULL);
+	  list_insert_ordered(&sema->waiters, &thread_current()->elem, pCompare, NULL);
 	  thread_block ();
     }
   sema->value--;
@@ -117,7 +117,7 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
 	  /* Check the priority of waiter list one more before popping the highest priority thread of the list since there might have been dynamic changes of priority */
-	  list_sort(&sema->waiters, pSemCompare, NULL);
+	  list_sort(&sema->waiters, pCompare, NULL);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
   }
@@ -206,7 +206,8 @@ lock_acquire (struct lock *lock)
   struct thread* cur = thread_current();
   if(lock->holder != NULL) {
 	  cur->waitLock = lock;
-	  list_push_back(&lock->holder->donation_list, &cur->donation_elem);
+	  //list_push_back(&lock->holder->donation_list, &cur->donation_elem);
+	  list_insert_ordered(&lock->holder->donation_list, &cur->donation_elem, pCompare, NULL);
 	  pDonation();
   }
   sema_down (&lock->semaphore);
@@ -246,10 +247,10 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
  
+  lock->holder = NULL;
+  /* Add two functions to update the state of priority donation */
   donation_remove(lock);
   pUpdate();
-
-  lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
 
@@ -263,7 +264,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem 
   {
